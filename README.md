@@ -227,7 +227,9 @@ cost-aware-llm-router/
 │   ├── 05_router_eval.ipynb
 │   ├── 06_final_test_eval.ipynb
 │   ├── 07_analysis_and_visuals.ipynb
-│   └── 08_gradio_demo.ipynb
+│   ├── 08_gradio_demo.ipynb
+│   ├── 09_robustness_baselines_bootstrap.ipynb
+│   └── 10-multiseed-distilbert.ipynb
 ├── data/
 │   └── benchmark_replay_sample.csv
 ├── results/
