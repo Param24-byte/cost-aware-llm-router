@@ -15,7 +15,7 @@ models/
     ├── model.safetensors
     ├── tokenizer.json
     ├── tokenizer_config.json
-    └── training_args.bin
+    └── training_args.bin   # local training metadata; not needed for inference
 ```
 
 Published Hugging Face model:
@@ -37,3 +37,7 @@ To use a local checkpoint instead:
 ```bash
 ROUTER_MODEL_PATH=/path/to/checkpoint python app/app.py
 ```
+
+## Hugging Face artifact policy
+
+`training_args.bin` is not required to load the router for inference and is a PyTorch-serialized training metadata artifact. The published model repository should contain the model/tokenizer/config files but omit this file. Notebook 11 includes a cleanup cell for deleting it from the Hub after publishing.
