@@ -230,7 +230,7 @@ To run the demo:
 ## Installation
 
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/Param24-byte/cost-aware-llm-router.git
 cd cost-aware-llm-router
 
 python -m venv .venv
