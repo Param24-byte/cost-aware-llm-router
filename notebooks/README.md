@@ -14,6 +14,6 @@ The repository follows the experimental pipeline in order:
 
 Additional reproducibility notebooks used after the original frozen experiment:
 - `10-multiseed-distilbert.ipynb` — three-seed robustness experiment on Kaggle GPU.
-- `11_publish_router_to_huggingface.ipynb` — publish the saved checkpoint to Hugging Face Hub (to be added after the Hub publish step).
+- `11_publish_router_to_huggingface.ipynb` — publish the saved checkpoint to Hugging Face Hub.
 
 The original frozen Colab result and the later robustness experiments are reported separately.
