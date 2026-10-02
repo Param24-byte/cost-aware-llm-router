@@ -22,12 +22,20 @@ On the untouched test set:
 | System | Mean Performance | Mean Historical Cost / Query |
 |---|---:|---:|
 | Cheapest Fixed | 0.322704 | 0.000049 |
-| TF-IDF Router | 0.733239 | 0.002181 |
+| TF-IDF Router (extended grid, θ=0.97) | 0.732804 | 0.002197 |
 | **DistilBERT Router** | **0.760448** | **0.002877** |
 | GPT-4 Fixed | 0.768067 | 0.003738 |
 | Oracle | 0.888659 | 0.000263 |
 
 The DistilBERT router stayed about **0.76 percentage points below GPT-4** while reducing historical average cost by about **23%**.
+
+The TF-IDF row above uses the **validation-selected extended-grid point (θ=0.97)**. No TF-IDF threshold met the validation target, so 0.97 was chosen as the highest-validation-performance fallback; its test value is reported descriptively. See [validation threshold curves](assets/validation_threshold_curves.png) and [test threshold curves](assets/test_threshold_curves.png).
+
+### Key findings
+
+A simple **domain rule essentially matches GPT-4's test performance** (0.768394 vs 0.768067) at about **21.97% lower historical cost**. The frozen DistilBERT router saves about **23.05%** at an observed **0.76 percentage-point performance loss**. Relative to the domain rule, prompt-level DistilBERT routing adds a cost-efficiency trade-off in **MMLU** and **ARC** (about 17.9% and 31.9% lower cost respectively, with performance losses of about 0.93 pp and 1.36 pp), but it is **dominated on GSM8K** (about 0.44 pp lower performance and 6.8% higher cost). Finally, the bootstrap interval extends beyond the project's 1-point margin, so the point estimate met the target but strict statistical non-inferiority was not established.
+
+These are benchmark-specific findings, not claims about arbitrary production prompts.
 
 Frozen routing threshold: **0.94**
 
@@ -51,6 +59,8 @@ Across three additional training seeds (13, 42, 77), the DistilBERT cost-aware r
 - historical test cost: **0.002966 ± 0.000093**
 - gap vs GPT-4: **0.664 ± 0.136 percentage points**
 - cost saving vs GPT-4: **20.65% ± 2.49%**
+
+These three runs were performed on **Kaggle with Python 3.12.13 and PyTorch 2.10.0+cu128**, whereas the original frozen Colab experiment used a different PyTorch/CUDA environment. The Kaggle seed-42 result was **0.762952** versus **0.760448** in the frozen Colab run, a difference of about **0.25 percentage points**. The 1,725-step training trace plus PyTorch gather warnings are consistent with multi-GPU data-parallel execution (effective global batch approximately 32 rather than 16), although the notebook only printed the first Tesla T4 device. Therefore, the three-seed standard deviation should be treated as a **descriptive robustness check, not a precise variance estimate**; five or more seeds would be preferable for a stronger estimate.
 
 A paired bootstrap on the original frozen test choices estimated a router-minus-GPT-4 performance difference of **-0.007619**, with a 95% percentile interval of approximately **[-0.013714, -0.001524]**. The observed point estimate met the project's 1-percentage-point criterion, but strict statistical non-inferiority at that margin was not established.
 
@@ -95,7 +105,9 @@ The project uses the 0-shot release of **RouterBench** and focuses on:
 
 RouterBench contains historical outputs, performance scores, and estimated costs for multiple LLMs.
 
-The released performance fields are kept as values in **[0, 1]**, rather than being forcibly converted to binary labels.
+In the selected data, including GSM8K, the model-performance fields use five discrete score levels: **0, 0.25, 0.50, 0.75, and 1.00**. We preserve these as ordered fractional performance targets: 0 is the lowest score, 1 is the highest, and the intermediate values are fractional score levels supplied by the benchmark. They are **not calibrated probabilities**. Because these targets are not purely binary, the project uses bounded multi-output regression rather than forcing them into 0/1 labels.
+
+The released performance fields are therefore kept as values in **[0, 1]**, rather than being forcibly converted to binary labels.
 
 ---
 
@@ -121,6 +133,10 @@ TF-IDF + Ridge Regression
 
 ### Main model
 DistilBERT with 11 regression outputs.
+
+### Related work and routing-policy attribution
+
+The general cost/quality routing idea is **adapted from prior multi-LLM routing work**, not claimed as a new routing principle. Relevant references include **FrugalGPT**, **Hybrid LLM**, **RouteLLM**, and **Switchcraft**. Switchcraft is especially close at the policy level: it uses a lightweight DistilBERT-based router and selects a lower-cost model subject to a correctness requirement. Our project-specific adaptation is to predict **11 RouterBench performance scores** and apply a validation-selected threshold followed by a cheapest-eligible rule. Full citations and links are in [`references/SOURCES.md`](references/SOURCES.md).
 
 For one input question:
 
@@ -186,6 +202,9 @@ The overall project target is satisfied, although the same one-percentage-point 
 The demo contains two modes.
 
 ### Live Router
+
+> **⚠️ Out-of-distribution warning:** the training prompts carried benchmark-specific templates and formatting. Arbitrary free-text questions may therefore behave differently from the held-out RouterBench evaluation. Use **Benchmark Replay** when demonstrating the evaluated experiment.
+
 Enter an arbitrary question and inspect:
 - predicted score for each LLM,
 - selected model,
@@ -247,6 +266,34 @@ cost-aware-llm-router/
 ```
 
 ---
+
+## How to reproduce
+
+### Required inputs
+
+For the full pipeline, start from the public RouterBench 0-shot data. The project then creates:
+
+- `router_project_canonical.pkl` — canonical prompt/performance/cost table;
+- `router_split_indices.npz` — original fixed 80/10/10 split;
+- the saved DistilBERT checkpoint for later evaluation/demo steps.
+
+For the Kaggle multi-seed notebook, only `router_project_canonical.pkl` is required because notebook 10 reconstructs the original split deterministically with scikit-learn 1.6.1.
+
+### Notebook order
+
+1. `01_data_audit.ipynb` — inspect RouterBench, domains, target values, and environment.
+2. `02_build_dataset.ipynb` — build the canonical dataset and fixed train/validation/test split.
+3. `03_baselines.ipynb` — train TF-IDF + Ridge baseline.
+4. `04_train_distilbert.ipynb` — train the 11-output DistilBERT regressor.
+5. `05_router_eval.ipynb` — choose the DistilBERT routing threshold using validation only.
+6. `06_final_test_eval.ipynb` — run the frozen one-time test evaluation.
+7. `07_analysis_and_visuals.ipynb` — per-domain analysis, model-selection plots, and examples.
+8. `08_gradio_demo.ipynb` — original interactive demo.
+9. `09_robustness_baselines_bootstrap.ipynb` — extended threshold curves, domain/argmax baselines, paired bootstrap, and replay sample.
+10. `10-multiseed-distilbert.ipynb` — three-seed Kaggle robustness run on the same split.
+11. `11_publish_to_huggingface.ipynb` — publish the trained checkpoint to Hugging Face.
+
+The original frozen Colab result should remain separate from later robustness runs; do not replace it with the best seed.
 
 ## Trained checkpoint
 
