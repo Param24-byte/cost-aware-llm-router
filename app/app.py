@@ -1,3 +1,5 @@
+import ast
+import json
 import os
 from pathlib import Path
 
@@ -40,7 +42,6 @@ FINAL_THRESHOLD = 0.94
 MAX_LENGTH = 384
 GPT4_INDEX = MODEL_COLS.index("gpt-4-1106-preview")
 
-# Training-split mean historical costs captured by the project.
 MEAN_TRAIN_COST = np.array([
     7.9269856e-05,
     0.00026399308,
@@ -55,31 +56,46 @@ MEAN_TRAIN_COST = np.array([
     0.00019933419,
 ], dtype=np.float32)
 
-DEFAULT_MODEL_PATH = (
-    Path(__file__).resolve().parents[1]
-    / "models"
-    / "distilbert_llm_router"
-)
+ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_MODEL_PATH = ROOT / "models" / "distilbert_llm_router"
+BENCHMARK_PATH = ROOT / "data" / "benchmark_replay_sample.csv"
 
-MODEL_PATH = Path(
-    os.environ.get(
-        "ROUTER_MODEL_PATH",
-        str(DEFAULT_MODEL_PATH),
+# After the checkpoint is uploaded to Hugging Face Hub, set:
+# ROUTER_MODEL_ID=<username>/<model-repo>
+#
+# If ROUTER_MODEL_ID is absent, the app falls back to the local checkpoint.
+MODEL_ID = os.environ.get("ROUTER_MODEL_ID")
+
+if MODEL_ID:
+    MODEL_SOURCE = MODEL_ID
+else:
+    MODEL_SOURCE = Path(
+        os.environ.get(
+            "ROUTER_MODEL_PATH",
+            str(DEFAULT_MODEL_PATH),
+        )
     )
-)
 
-if not MODEL_PATH.exists():
-    raise FileNotFoundError(
-        f"Model checkpoint not found at {MODEL_PATH}. "
-        "Run notebook 04 or set ROUTER_MODEL_PATH."
-    )
+    if not MODEL_SOURCE.exists():
+        raise FileNotFoundError(
+            f"Model checkpoint not found at {MODEL_SOURCE}. "
+            "Set ROUTER_MODEL_ID to a Hugging Face model repo or "
+            "ROUTER_MODEL_PATH to a local checkpoint."
+        )
 
-tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)
-model = AutoModelForSequenceClassification.from_pretrained(MODEL_PATH)
+tokenizer = AutoTokenizer.from_pretrained(MODEL_SOURCE)
+model = AutoModelForSequenceClassification.from_pretrained(MODEL_SOURCE)
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model = model.to(DEVICE)
 model.eval()
+
+if not BENCHMARK_PATH.exists():
+    raise FileNotFoundError(
+        f"Benchmark replay sample not found at {BENCHMARK_PATH}."
+    )
+
+benchmark_df = pd.read_csv(BENCHMARK_PATH)
 
 
 def predict_scores(question: str) -> np.ndarray:
@@ -140,13 +156,17 @@ def live_router(question, mode, demo_threshold):
         return "Please enter a question.", pd.DataFrame()
 
     scores = predict_scores(str(question))
+
     threshold = (
         FINAL_THRESHOLD
         if mode == "Evaluation Mode"
         else float(demo_threshold)
     )
 
-    selected, reason, eligible_count = select_model(scores, threshold)
+    selected, reason, eligible_count = select_model(
+        scores,
+        threshold
+    )
 
     selected_cost = float(MEAN_TRAIN_COST[selected])
     gpt4_cost = float(MEAN_TRAIN_COST[GPT4_INDEX])
@@ -161,7 +181,11 @@ def live_router(question, mode, demo_threshold):
 
     table["Selected"] = False
     table.loc[selected, "Selected"] = True
-    table = table.sort_values("Predicted Performance", ascending=False)
+
+    table = table.sort_values(
+        "Predicted Performance",
+        ascending=False
+    )
 
     mode_note = (
         "Evaluation Mode uses the frozen experimental threshold."
@@ -197,7 +221,103 @@ def live_router(question, mode, demo_threshold):
 
 > The predicted value is a RouterBench performance-score estimate, not a calibrated probability.
 """
+
     return summary, table
+
+
+def clean_benchmark_prompt(value: str) -> str:
+    try:
+        parsed = ast.literal_eval(value)
+
+        if isinstance(parsed, list):
+            return "\n\n".join(
+                str(part) for part in parsed
+            )
+    except (ValueError, SyntaxError):
+        pass
+
+    return str(value)
+
+
+def benchmark_replay(row_number):
+    row_number = int(row_number)
+    row = benchmark_df.iloc[row_number]
+
+    predicted = np.asarray(
+        json.loads(row["predicted_scores_json"]),
+        dtype=float,
+    )
+
+    actual_perf = np.asarray(
+        json.loads(row["actual_performance_json"]),
+        dtype=float,
+    )
+
+    actual_cost = np.asarray(
+        json.loads(row["actual_cost_json"]),
+        dtype=float,
+    )
+
+    selected = int(row["selected_model_index"])
+    gpt4 = GPT4_INDEX
+
+    selected_perf = float(actual_perf[selected])
+    selected_cost = float(actual_cost[selected])
+    gpt4_perf = float(actual_perf[gpt4])
+    gpt4_cost = float(actual_cost[gpt4])
+
+    if gpt4_cost > 0:
+        saving = (
+            1 - selected_cost / gpt4_cost
+        ) * 100
+    else:
+        saving = float("nan")
+
+    comparison = pd.DataFrame({
+        "Model": DISPLAY_NAMES,
+        "Predicted Score": predicted.round(4),
+        "Actual Performance": actual_perf.round(4),
+        "Actual Historical Cost ($)": actual_cost.round(7),
+    })
+
+    comparison["Frozen Router Choice"] = False
+    comparison.loc[selected, "Frozen Router Choice"] = True
+
+    comparison["GPT-4 Baseline"] = False
+    comparison.loc[gpt4, "GPT-4 Baseline"] = True
+
+    comparison = comparison.sort_values(
+        "Predicted Score",
+        ascending=False
+    )
+
+    summary = f"""
+## Frozen Benchmark Replay
+
+**Original test index:** `{int(row["test_index"])}`
+
+**Domain:** `{row["domain"]}`
+
+**Frozen router choice:** `{DISPLAY_NAMES[selected]}`
+
+**Router actual performance:** `{selected_perf:.2f}`
+
+**GPT-4 actual performance:** `{gpt4_perf:.2f}`
+
+**Router historical cost:** `${selected_cost:.6f}`
+
+**GPT-4 historical cost:** `${gpt4_cost:.6f}`
+
+**Historical cost saving on this example:** `{saving:.2f}%`
+
+> Replay uses the stored prediction and frozen decision from the held-out test experiment. It does not rerun or retune the router.
+"""
+
+    prompt = clean_benchmark_prompt(
+        row["prompt"]
+    )
+
+    return prompt, summary, comparison
 
 
 with gr.Blocks(title="Cost-Aware LLM Router") as demo:
@@ -209,7 +329,7 @@ A DistilBERT-based ML router that estimates expected RouterBench
 performance for 11 candidate LLMs and chooses the cheapest model
 that satisfies a quality threshold.
 
-### Final held-out test result
+### Frozen held-out test result
 
 - DistilBERT Router: **0.7604 mean performance**
 - GPT-4 Fixed: **0.7681 mean performance**
@@ -238,8 +358,13 @@ that satisfies a quality threshold.
             label="Exploration Threshold (ignored in Evaluation Mode)",
         )
 
-        route_button = gr.Button("Route Question", variant="primary")
+        route_button = gr.Button(
+            "Route Question",
+            variant="primary"
+        )
+
         routing_summary = gr.Markdown()
+
         routing_table = gr.Dataframe(
             label="Predicted Model Performance",
             interactive=False,
@@ -247,8 +372,62 @@ that satisfies a quality threshold.
 
         route_button.click(
             fn=live_router,
-            inputs=[question_input, mode_input, threshold_slider],
-            outputs=[routing_summary, routing_table],
+            inputs=[
+                question_input,
+                mode_input,
+                threshold_slider,
+            ],
+            outputs=[
+                routing_summary,
+                routing_table,
+            ],
+        )
+
+    with gr.Tab("Benchmark Replay"):
+        gr.Markdown(
+            """
+## Benchmark Replay
+
+Replay one of 30 sampled examples from the untouched test split.
+The stored prediction and frozen routing decision are compared with
+the actual historical RouterBench performance and cost.
+"""
+        )
+
+        replay_index = gr.Slider(
+            minimum=0,
+            maximum=len(benchmark_df) - 1,
+            value=0,
+            step=1,
+            label="Benchmark Sample",
+        )
+
+        replay_button = gr.Button(
+            "Replay Frozen Decision",
+            variant="primary"
+        )
+
+        replay_question = gr.Textbox(
+            label="Benchmark Question",
+            lines=10,
+            interactive=False,
+        )
+
+        replay_summary = gr.Markdown()
+
+        replay_table = gr.Dataframe(
+            label="Frozen Test Comparison",
+            interactive=False,
+        )
+
+        replay_button.click(
+            fn=benchmark_replay,
+            inputs=[replay_index],
+            outputs=[
+                replay_question,
+                replay_summary,
+                replay_table,
+            ],
         )
 
     gr.Markdown(
@@ -259,7 +438,8 @@ that satisfies a quality threshold.
 
 This application demonstrates **routing**. It does not call the
 downstream LLMs to generate answers. Costs refer to historical
-RouterBench estimates.
+RouterBench estimates. Free-form Live Router inputs may be out of
+distribution relative to the benchmark prompts used for training.
 """
     )
 
