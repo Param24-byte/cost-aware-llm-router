@@ -1,0 +1,10 @@
+metric,mean,sd
+threshold,0.926667,0.011547
+val_mse,0.122707,0.000728
+val_mae,0.264437,0.001133
+test_mse,0.123687,0.000702
+test_mae,0.265588,0.001030
+test_router_performance,0.761428,0.001359
+test_router_cost,0.002966,0.000093
+performance_gap_pp,0.663912,0.135939
+cost_saving_percent,20.653654,2.486080
