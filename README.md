@@ -31,6 +31,29 @@ The DistilBERT router stayed about **0.76 percentage points below GPT-4** while 
 
 Frozen routing threshold: **0.94**
 
+### Robustness and additional baselines
+
+The original frozen Colab run remains the primary reported experiment. Additional checks were added afterward without retuning that frozen result.
+
+| System | Validation Performance | Validation Cost | Test Performance | Test Cost |
+|---|---:|---:|---:|---:|
+| GPT-4 Fixed | 0.775044 | 0.003638 | 0.768067 | 0.003738 |
+| Domain Rule | 0.776786 | 0.002860 | 0.768394 | 0.002917 |
+| DistilBERT Argmax Only | 0.775479 | 0.002939 | 0.761754 | 0.002985 |
+| Domain Classifier Router | 0.776786 | 0.002860 | 0.768394 | 0.002917 |
+| DistilBERT Cost-Aware | 0.767639 | 0.002836 | 0.760448 | 0.002877 |
+
+The benchmark-domain classifier reached 100% accuracy on this restricted three-domain split, so the domain-rule and domain-classifier routers produce the same routing result. This should not be interpreted as 100% domain accuracy on arbitrary real-world prompts.
+
+Across three additional training seeds (13, 42, 77), the DistilBERT cost-aware router achieved:
+
+- test performance: **0.761428 ± 0.001359**
+- historical test cost: **0.002966 ± 0.000093**
+- gap vs GPT-4: **0.664 ± 0.136 percentage points**
+- cost saving vs GPT-4: **20.65% ± 2.49%**
+
+A paired bootstrap on the original frozen test choices estimated a router-minus-GPT-4 performance difference of **-0.007619**, with a 95% percentile interval of approximately **[-0.013714, -0.001524]**. The observed point estimate met the project's 1-percentage-point criterion, but strict statistical non-inferiority at that margin was not established.
+
 ---
 
 ## Project pipeline
@@ -205,8 +228,14 @@ cost-aware-llm-router/
 │   ├── 06_final_test_eval.ipynb
 │   ├── 07_analysis_and_visuals.ipynb
 │   └── 08_gradio_demo.ipynb
+├── data/
+│   └── benchmark_replay_sample.csv
 ├── results/
-│   └── final_test_metrics.csv
+│   ├── final_test_metrics.csv
+│   ├── extended_baseline_comparison.csv
+│   ├── paired_bootstrap_summary.csv
+│   ├── distilbert_multiseed_runs.csv
+│   └── distilbert_multiseed_summary.csv
 ├── assets/
 ├── references/
 │   └── SOURCES.md
@@ -221,9 +250,11 @@ cost-aware-llm-router/
 The trained DistilBERT checkpoint is intentionally **not committed to normal Git history** because it is large.
 
 To run the demo:
-1. run `04_train_distilbert.ipynb`, or
+1. set `ROUTER_MODEL_ID=<username>/<model-repo>` after publishing the checkpoint to Hugging Face Hub, or
 2. place a compatible trained checkpoint under `models/distilbert_llm_router/`, or
-3. set the environment variable `ROUTER_MODEL_PATH`.
+3. set `ROUTER_MODEL_PATH` to another local checkpoint path.
+
+The standalone app includes both **Live Router** and **Benchmark Replay**. The replay tab uses the small frozen sample stored in `data/benchmark_replay_sample.csv`.
 
 ---
 
