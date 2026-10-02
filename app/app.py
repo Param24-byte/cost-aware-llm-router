@@ -334,8 +334,20 @@ that satisfies a quality threshold.
     )
 
     with gr.Tab("Live Router"):
+        gr.Markdown(
+            """
+> ⚠️ **Out-of-distribution warning**
+>
+> The router was trained on benchmark-formatted RouterBench prompts
+> (MMLU, ARC-Challenge, and GSM8K), which include task-specific
+> templates and answer formatting. Arbitrary free-text questions may
+> behave differently from the held-out evaluation. For a faithful
+> demonstration of the reported experiment, use **Benchmark Replay**.
+"""
+        )
+
         question_input = gr.Textbox(
-            label="Enter a question",
+            label="Free-text question (may be out of distribution)",
             placeholder="Example: What is the derivative of x^2?",
             lines=5,
         )
