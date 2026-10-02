@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Model checkpoints / large artifacts
+models/distilbert_llm_router/
+*.safetensors
+pytorch_model.bin
+checkpoint-*/
+distilbert_router_runs/
+
+# Generated / local data
+*.pkl
+*.npy
+*.npz
+*.joblib
+
+# Colab / local artifacts
+content/
+drive/
+
+# OS/editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Secrets
+.env
+*.key

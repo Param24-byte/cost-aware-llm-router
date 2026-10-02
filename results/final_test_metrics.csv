@@ -1,0 +1,6 @@
+System,Mean Performance,Mean Cost
+Cheapest Fixed,0.322704,4.9e-05
+TF-IDF Router,0.733239,0.002181
+DistilBERT Router,0.760448,0.002877
+GPT-4 Fixed,0.768067,0.003738
+Oracle,0.888659,0.000263
