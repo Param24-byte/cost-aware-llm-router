@@ -229,7 +229,8 @@ cost-aware-llm-router/
 │   ├── 07_analysis_and_visuals.ipynb
 │   ├── 08_gradio_demo.ipynb
 │   ├── 09_robustness_baselines_bootstrap.ipynb
-│   └── 10-multiseed-distilbert.ipynb
+│   ├── 10-multiseed-distilbert.ipynb
+│   └── 11_publish_router_to_huggingface.ipynb
 ├── data/
 │   └── benchmark_replay_sample.csv
 ├── results/
@@ -247,14 +248,22 @@ cost-aware-llm-router/
 
 ---
 
-## Important: trained checkpoint
+## Trained checkpoint
 
 The trained DistilBERT checkpoint is intentionally **not committed to normal Git history** because it is large.
 
-To run the demo:
-1. set `ROUTER_MODEL_ID=<username>/<model-repo>` after publishing the checkpoint to Hugging Face Hub, or
-2. place a compatible trained checkpoint under `models/distilbert_llm_router/`, or
-3. set `ROUTER_MODEL_PATH` to another local checkpoint path.
+Published model:
+
+`Paam24/cost-aware-llm-router-distilbert`
+
+Hugging Face: https://huggingface.co/Paam24/cost-aware-llm-router-distilbert
+
+The standalone app loads this public Hugging Face checkpoint by default, so no retraining is required before running the demo.
+
+Optional overrides:
+
+1. set `ROUTER_MODEL_ID=<another-hugging-face-model>`, or
+2. set `ROUTER_MODEL_PATH=/path/to/local/checkpoint`.
 
 The standalone app includes both **Live Router** and **Benchmark Replay**. The replay tab uses the small frozen sample stored in `data/benchmark_replay_sample.csv`.
 

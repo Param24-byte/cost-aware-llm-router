@@ -60,28 +60,24 @@ ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_MODEL_PATH = ROOT / "models" / "distilbert_llm_router"
 BENCHMARK_PATH = ROOT / "data" / "benchmark_replay_sample.csv"
 
-# After the checkpoint is uploaded to Hugging Face Hub, set:
-# ROUTER_MODEL_ID=<username>/<model-repo>
-#
-# If ROUTER_MODEL_ID is absent, the app falls back to the local checkpoint.
-MODEL_ID = os.environ.get("ROUTER_MODEL_ID")
+DEFAULT_HF_MODEL_ID = "Paam24/cost-aware-llm-router-distilbert"
 
-if MODEL_ID:
-    MODEL_SOURCE = MODEL_ID
-else:
-    MODEL_SOURCE = Path(
-        os.environ.get(
-            "ROUTER_MODEL_PATH",
-            str(DEFAULT_MODEL_PATH),
-        )
-    )
+# Default: load the published Hugging Face checkpoint.
+# Optional overrides:
+#   ROUTER_MODEL_ID=<another-hf-model-id>
+#   ROUTER_MODEL_PATH=/path/to/local/checkpoint
+LOCAL_MODEL_PATH = os.environ.get("ROUTER_MODEL_PATH")
+MODEL_ID = os.environ.get("ROUTER_MODEL_ID", DEFAULT_HF_MODEL_ID)
+
+if LOCAL_MODEL_PATH:
+    MODEL_SOURCE = Path(LOCAL_MODEL_PATH)
 
     if not MODEL_SOURCE.exists():
         raise FileNotFoundError(
-            f"Model checkpoint not found at {MODEL_SOURCE}. "
-            "Set ROUTER_MODEL_ID to a Hugging Face model repo or "
-            "ROUTER_MODEL_PATH to a local checkpoint."
+            f"Local model checkpoint not found at {MODEL_SOURCE}."
         )
+else:
+    MODEL_SOURCE = MODEL_ID
 
 tokenizer = AutoTokenizer.from_pretrained(MODEL_SOURCE)
 model = AutoModelForSequenceClassification.from_pretrained(MODEL_SOURCE)

@@ -18,16 +18,22 @@ models/
     └── training_args.bin
 ```
 
-The standalone app supports either:
+Published Hugging Face model:
+
+`Paam24/cost-aware-llm-router-distilbert`
+
+https://huggingface.co/Paam24/cost-aware-llm-router-distilbert
+
+The standalone app loads this public checkpoint by default.
+
+To override it with another Hugging Face model:
 
 ```bash
 ROUTER_MODEL_ID=<hugging-face-user>/<model-repo> python app/app.py
 ```
 
-or a local checkpoint:
+To use a local checkpoint instead:
 
 ```bash
 ROUTER_MODEL_PATH=/path/to/checkpoint python app/app.py
 ```
-
-The Hugging Face repository ID will be documented here after the checkpoint is published.
