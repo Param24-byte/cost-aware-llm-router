@@ -230,7 +230,7 @@ cost-aware-llm-router/
 │   ├── 08_gradio_demo.ipynb
 │   ├── 09_robustness_baselines_bootstrap.ipynb
 │   ├── 10-multiseed-distilbert.ipynb
-│   └── 11_publish_router_to_huggingface.ipynb
+│   └── 11_publish_to_huggingface.ipynb
 ├── data/
 │   └── benchmark_replay_sample.csv
 ├── results/
